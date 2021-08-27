@@ -1,8 +1,8 @@
 # https://towardsdatascience.com/do-not-use-print-for-debugging-in-python-anymore-6767b6f1866d
 from icecream import ic
-from icecream.icecream import colorizedStderrPrint
 from datetime import datetime
-# ic.disable()
+ic.disable()
+ic.enable()
 
 def now():
     return f'[{datetime.now()}] '
@@ -44,9 +44,9 @@ ic(dog.tail)
 ic(dog.nose)
 print(dog.tail)
 
-input = "Chris"
+user_name = "Chris"
 
-if input =="Chris":
+if user_name == "Chris":
     ic()
 else:
     ic()
