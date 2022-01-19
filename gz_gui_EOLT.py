@@ -9,7 +9,7 @@ import adafruit_ads1x15.ads1015 as ADS
 from adafruit_ads1x15.analog_in import AnalogIn
 from fpdf import FPDF
 import matplotlib.pyplot as plt
-import pandas as pd
+# import pandas as pd
 # Create the I2C bus
 i2c = busio.I2C(board.SCL, board.SDA)
 
@@ -48,8 +48,8 @@ pin5 = GPIO.input(5)
 # pin21 = GPIO.input(21) # to be used for the power down Raspberry Pi
 
 GPIO.setup(ENB, GPIO.OUT)
-HALLS = 6
-HEADS = 3
+# HALLS = 6
+# HEADS = 3
 delay = .015
 readings_table = []
 plotlegend = [] 
@@ -85,12 +85,12 @@ item_numbers = np.array([[107287,8,2,4,1,0,1000,700,-600,-900,1000,-50,204109,12
                         [121335,15,5,3,0,1,1000,700,-600,-900,1000,-50,301401,124740,200],
                         [121791,12,6,2,0,1,1000,700,-600,-900,1000,-50,301400,124394,200]])
                             
-print(item_numbers)
+# print(item_numbers)
 # Create the item numbers for the Combobox
 items =[]
 for column in item_numbers:
     items.append(column[0])
-print(items)
+# print(items)
 
 def flatten_list(_2d_list):
     flat_list = []
@@ -112,23 +112,47 @@ with open('Users.csv', newline='') as FR:
         users.append(row)
     # but I only want only a list as such ["John", "Julie"]
     # So this will flatten the list
-    print(f"unsorted:{users}")
+#     print(f"unsorted:{users}")
     users = flatten_list(users)
     # sort the list of names alphabetically with sorted()
     users=sorted(users)
-    print(users)
 
 
 
+def home():
+    # enable the stepper motor control - don't leave on since the motor heats up
+    GPIO.output(ENB, True)
+    GPIO.output(DIR, CW) #Set dir of travel towards home switch
+    # Read current state of home sensor
+    home_sensor = GPIO.input(5)
+    
+    while home_sensor == 0:
+        GPIO.output(STEP, GPIO.HIGH)
+        sleep(delay)
+        GPIO.output(STEP, GPIO.LOW)
+        home_sensor = GPIO.input(5)
 
-def addressed_read_all_halls():
+# rapid move to starting
+    GPIO.output(DIR, CCW)#Set dir of travel away home switch
+    for _ in range(500):
+        GPIO.output(STEP, GPIO.HIGH)
+        sleep(delay/10)
+        GPIO.output(STEP, GPIO.LOW)
+    #     sleep(delay/10)
+
+
+def addressed_read_all_halls(heads, halls_per_head):
+    """Function to read a addressed type sensor set, like SMFL
+        input is= heads, halls per head
+        output is a list of values of heads * halls_per_head length"""
+    
     hall_readings = []
     
 #     print("heads: " + str(HEADS))
 #     print("heads: " + str(HALLS))
-    for i in range(HEADS):
-        for j in range(HALLS):
-            addressed_hall_number = i * HALLS + j
+    for i in range(heads):
+        for j in range(halls_per_head):
+            addressed_hall_number = i * halls_per_head + j
             
             if j == 0:
 #                 print("Hall_0")
@@ -244,159 +268,46 @@ def save_test():
     print("Save Test")
 
 def begin_test():
-    # find a better way for globals here maybe the mutable list that is global?
-    global item_num_indx
-    global HEADS
-    global HALLS
-    report_txt = "" #This will hold all the report test and post it to the test report textbox see how it works
-    UUT = item_numbers[item_num_indx][0]
-    report_txt += f"Testing a {UUT} \n"
-    HALLS = item_numbers[item_num_indx][2]
-    report_txt += f"Using {HALLS} Halls per Head\n"
-    HEADS = item_numbers[item_num_indx][3]
-    report_txt += f"With {HEADS} Heads\n"
-    # Add the test max min and threshold
+    print("begin test")
+   
+    # TODO set Neopixels white
+    home()
     
-    # Obtain test configuration
-    for h in range(HALLS * HEADS):
-        plotlegend.append("hall: "+ str(h))
+#     Obtain the data needed for the test
+    uut_index = items.index(int(selected_item.value))
+    uut_heads = item_numbers[uut_index][2]
+    uut_halls_per_head = item_numbers[uut_index][3]
+    uut_total_halls = uut_halls_per_head * uut_heads
+    uut_user = user_name_cmb.value #String
+    uut_serial_num = serial_num_txtbox.value
+    uut_plotlegend = []
+    for h in range(uut_halls_per_head * uut_heads):
+        uut_plotlegend.append("hall: "+ str(h))
+#     print(uut_plotlegend)
+#     Create results table which is a summary of the test:  max, min, & noise
     
-    GPIO.output(ENB, True)
-    # Homing
-    global pin5
+#     readings_table = np.zeros(shape=(uut_total_halls))
+# #     print(readings_table)   
+#     results_table = np.zeros(shape=(8,uut_total_halls)) #Erase the values in the table
+# #     print(results_table)
     
-    while pin5 == 0:   
-        GPIO.output(STEP, GPIO.HIGH)
-        sleep(delay) # need pulse for stepper motor controller to move
-        GPIO.output(STEP, GPIO.LOW)
-        pin5 = GPIO.input(5)
-
-    # rapid move to starting
-    GPIO.output(DIR, CCW)
-    for s in range(500):
-        GPIO.output(STEP, GPIO.HIGH)
-        sleep(delay/10)
-        GPIO.output(STEP, GPIO.LOW)
+    #prime ads sensor by calling it once without doing anything with the returned list
+    addressed_read_all_halls(uut_heads, uut_halls_per_head)
     
-    # Read sesnors once to prime, or noise reduction, of the ADS1X15 sensor
-    addressed_read_all_halls()
-    
-    # read the hall again and do the quick check to make sure the setup is correct
-    #Alert the user if the paramters are not correct give notice in a message box exit by using return
-    
-    
-    
+    uut_noise=[]
     # Noise Check
     for n in range(noise_readings):
-        readings_table.append(addressed_read_all_halls())
-        
-    # testing steps
-    for s in range(1100-500):
-        GPIO.output(STEP, GPIO.HIGH)
-        sleep(delay/10)
-        GPIO.output(STEP, GPIO.LOW)
-        step = int(round(s/18,0))
-        # Write the test readings to the table        
-        readings_table.append(addressed_read_all_halls())
-        
-    df = pd.DataFrame(readings_table)
-    timestr = strftime("%Y%m%d-%H%M%S")
-    filename = "readings-" + timestr +".csv"
-    df.to_csv(filename, sep=',')
-    # Calculate noise - 1st derivitive
-    noise_results = df.iloc[:noise_readings, 0:((HALLS * HEADS))].diff(axis=0, periods = 1).abs().max().to_frame()
-    noise_results.columns = ['Noise']
-    noise_results["Halls"] = plotlegend
-#     Dump noise result to a file?
-    filename = "noise_readings-" + timestr +".csv"
-    noise_results.to_csv(filename, sep=',')
+        uut_noise.append(addressed_read_all_halls(uut_heads, uut_halls_per_head))
+    print(f"the current reading list has rows: {len(current_reading)}")
+    print(f"the current reading list has columns: {len(current_reading[0])}")
     
-    report_txt += str(noise_results) + "\n"
-    result_txtbox.value = report_txt
-    
-    # pass fail results of pandas dataframe between 9 Something like max - min between(max-dif, min-diff15, inclusive = True) 
-    
-    
-    
-    # return the plate back home
-    GPIO.output(DIR, CW)    
-    for r in range(1100):
-        GPIO.output(STEP, GPIO.HIGH)
-        sleep(delay/10)
-        GPIO.output(STEP, GPIO.LOW)
 
-        step = int(60-round(r/18,0))  
-
-    # Turn on the stepper motor controller
+    
+#     This is for testing only remove next line to disable stepper prototyping only
     GPIO.output(ENB, False)
-    GPIO.cleanup()
-    
-    # Make the Counts chart
-    plt.plot(readings_table)
-    plt.rcParams["figure.figsize"] = [7.50, 3.50] 
-    plt.xlabel('Steps')
-    plt.ylabel('Counts')
-    plt.savefig('Counts.png')
-    
-    # plt.show() # if you would like a window pop up
-    # Make Noise Chart
-    #https://www.tutorialspoint.com/how-to-create-a-matplotlib-bar-chart-with-a-threshold-line
-    plt.rcParams["figure.figsize"] = [7.50, 3.50]
-    # plt.rcParams["figure.autolayout"] = True
-    threshold = item_numbers[item_num_indx][14] # 14 is the threshold
-    a_threshold = np.maximum(noise_results["Noise"] - threshold, 0)
-    b_threshold = np.minimum(noise_results["Noise"], threshold)
-    x = range(HALLS * HEADS)
-    fig, ax = plt.subplots()
-    ax.bar(x, b_threshold, 0.35, color="green")
-    ax.bar(x, a_threshold, 0.35, color="red", bottom=b_threshold)
-    plt.axhline(threshold, color='red', ls='dotted')
-    plt.savefig('Noise.png')
-    
-    # Now resize saved figures for the GUI
-    
-    # Create PDF report
-    pdf = FPDF('P', 'mm', 'letter')
-    pdf.add_page()
-    pdf.image('EOLT_report.png', x = 0, y = 0, w = 203, h = 279, type = 'PNG')
-    pdf.image('Noise.png', x = 0, y = 55, w = 97, h = 82, type = 'PNG')
-    pdf.image('Counts.png', x = 100, y = 55, w = 97, h = 82, type = 'PNG')
-    pdf.set_font('helvetica', 'B', 16)
-    pdf.text(23, 40, '121250')
-    pdf.text(23, 51.5, 'January 3, 2022')
-    pdf.text(127, 40, 'B12345')
-    pdf.text(127, 51.5, '01032022r12m3')
-    #set font for results
-    pdf.set_font('helvetica', size=10)
     
     
-    # Creating an empty list
-    rows = []
-    # Iterating through the columns of
-    # dataframe
-    results = noise_results[['Halls', 'Noise']]
-    for column in results.columns:
-        # Storing the rows of a column
-        # into a temporary list
-        li = results[column].tolist()
-         # appending the temporary list
-        rows.append(li)
 
-    print(f"Rows {rows}")
-    print("plot legend")
-    print(plotlegend)
-    print(f"second column in rows {rows[1]}")
-    row_pos=200 #counter for which row in loop
-    for row in (rows):
-        pdf.text(10, row_pos,str(row))
-        print(row)
-        row_pos += 5
-
-#     pdf.write(5, str(results))
-    pdf.output('tuto1.pdf', 'F')
-    
-    
-        
     
     
 def plot_noise():
