@@ -11,6 +11,7 @@ from fpdf import FPDF
 import matplotlib.pyplot as plt
 import pandas as pd
 import random
+from PIL import Image
 # Create the I2C bus
 i2c = busio.I2C(board.SCL, board.SDA)
 
@@ -57,7 +58,9 @@ plotlegend = []
 users=[] # list to hold users - purhapse will change to Dictionary to make easier to add 
 item_num_indx = 0 # used as a global index for which test
 noise_readings = 100 # how many readings for the noise check
-count_readings = 600 # how many steps and readings for counts check
+count_readings = 350 # how many steps and readings for counts check
+start_position = 500
+
 
 # Item number column headers
 # 0-Part Numbers,
@@ -71,7 +74,7 @@ count_readings = 600 # how many steps and readings for counts check
 # 8-lowMax,
 # 9-lowMin,
 # 10-diffMax,
-# 11-diffLow
+# 11-diffmin
 # 12-Harness item number 
 # 13-Fixture item number
 # 14-Noise Threshold
@@ -81,7 +84,7 @@ item_numbers = np.array([[107287,8,2,4,1,0,1000,700,-600,-900,1000,-50,204109,12
                         [108150,8,2,4,1,0,1000,700,-600,-900,885,654,204109,124458,200],
                         [112497,6,2,3,1,0,1000,700,-600,-900,1000,-50,301404,124734,200],
                         [121248,12,3,4,1,0,1000,700,-600,-900,728,460,301393,124393,200],
-                        [121250,18,6,3,0,1,1000,700,-600,-900,609,423,301400,124394,200],
+                        [121250,18,6,3,0,1,1000,700,-600,-900,14000,8000,301400,124394,200],
                         [121334,15,5,3,0,1,1000,700,-600,-900,1000,-50,301401,124742,200],
                         [121335,15,5,3,0,1,1000,700,-600,-900,1000,-50,301401,124740,200],
                         [121791,12,6,2,0,1,1000,700,-600,-900,1000,-50,301400,124394,200]])
@@ -133,13 +136,15 @@ def home():
         GPIO.output(STEP, GPIO.LOW)
         home_sensor = GPIO.input(5)
 
+def rapid_start_pos():
+    
 # rapid move to starting
-    GPIO.output(DIR, CCW)#Set dir of travel away home switch
+    GPIO.output(DIR, CCW) # Set dir of travel away home switch
     for _ in range(500):
         GPIO.output(STEP, GPIO.HIGH)
         sleep(delay/10)
         GPIO.output(STEP, GPIO.LOW)
-    #     sleep(delay/10)
+
 
 def selected_read_all_halls(heads, halls_per_head):
     #TODO
@@ -159,7 +164,7 @@ def addressed_read_all_halls(heads, halls_per_head):
     hall_readings = []
     for i in range(heads):
         for j in range(halls_per_head):
-            addressed_hall_number = i * halls_per_head + j
+#             addressed_hall_number = i * halls_per_head + j
             
             if j == 0:
 #                 print("Hall_0")
@@ -259,16 +264,18 @@ def double_click():
 #     with open("Users.csv", 'w', newline='') as f:
 #         writer = csv.writer(f)
 #         writer.writerow([users])
+# def create_pdf():
+    
+    #TODO pdf report
+    
 
 def update_harnes_fixture_lbl():
-    global item_num_indx
     print(selected_item.value)
-    item_num_indx = items.index(int(selected_item.value))
-    harness = str(item_numbers[item_num_indx][6])
-    fixture = str(item_numbers[item_num_indx][7])
+    indx = items.index(int(selected_item.value))
+    harness = str(item_numbers[indx][6])
+    fixture = str(item_numbers[indx][7])
     use_harness.value = harness
     use_fixture.value = fixture
-    save_btn.enabled=True
     tst_btn.enabled = True
  
 def save_test():
@@ -279,6 +286,7 @@ def begin_test():
    
     # TODO set Neopixels white
     home()
+    rapid_start_pos()
     
 #     Obtain the data needed for the test
     uut_index = items.index(int(selected_item.value))
@@ -290,6 +298,8 @@ def begin_test():
     uut_serial_num = serial_num_txtbox.value
     uut_plotlegend = []
     uut_noise_threshold = item_numbers[uut_index][14]
+    uut_max_diff = item_numbers[uut_index][10]
+    uut_min_diff = item_numbers[uut_index][11]
     for h in range(uut_halls_per_head * uut_heads):
         uut_plotlegend.append("hall: "+ str(h))
 #     print(uut_plotlegend)
@@ -305,24 +315,80 @@ def begin_test():
         else:
             uut_noise.append(addressed_read_all_halls(uut_heads, uut_halls_per_head))
             
-    print(f"the current reading list has rows: {len(uut_noise)}")
-    print(f"the current reading list has columns: {len(uut_noise[0])}")
+#     print(f"the current reading list has rows: {len(uut_noise)}")
+#     print(f"the current reading list has columns: {len(uut_noise[0])}")
     noise_df = pd.DataFrame(uut_noise, columns = uut_plotlegend)
     noise_df.to_csv("noise.csv", index = True)
     results = noise_df.iloc[:, 0:(uut_total_halls)].diff(axis=0, periods = 1).abs().max().to_frame()
     results.columns = ['Noise']
     results = results.assign(Result = results.loc[:,'Noise'] < uut_noise_threshold)
-    print(results)
-    
-    # Counts Check
-    count_readings
-    
-#     This is for testing only remove next line to disable stepper prototyping only
-    GPIO.output(ENB, False)
-    
-    
 
     
+    # Counts Check create a list to put all readings until last step
+    uut_counts = []
+    GPIO.output(DIR, CCW) 
+    for n in range(count_readings):
+        if uut_selected:
+            uut_counts.append(selected_read_all_halls(uut_heads, uut_halls_per_head))
+        else:
+            uut_counts.append(addressed_read_all_halls(uut_heads, uut_halls_per_head))
+        # Move one step
+        GPIO.output(STEP, GPIO.HIGH)
+        sleep(delay/10)
+        GPIO.output(STEP, GPIO.LOW)
+
+        
+# return home
+    GPIO.output(DIR, CW)    
+    for r in range(count_readings + start_position):
+        GPIO.output(STEP, GPIO.HIGH)
+        sleep(delay/10)
+        GPIO.output(STEP, GPIO.LOW)
+    #     sleep(delay/5)
+        step = int(60-round(r/18,0))  
+    #     print(step)
+
+    GPIO.output(ENB, False)
+    GPIO.cleanup()
+            
+    counts_df = pd.DataFrame(uut_counts, columns = uut_plotlegend)
+    print(counts_df.max())
+    results = results.assign(count_max = counts_df.max())
+    results = results.assign(count_min = counts_df.min())
+    results['count_diff'] = results['count_max']-results['count_min']
+    results['count_results'] = results['count_diff'].between(uut_min_diff, uut_max_diff, inclusive = True)
+    print(results)
+    result_txtbox.value = results
+    save_btn.enabled = True
+# create counts plot
+    plt.plot(uut_counts)
+    # plt.legend(plotlegend,loc='upper left')
+    plt.xlabel('Steps')
+    plt.ylabel('Counts')
+    plt.savefig('Counts.png')
+    im = Image.open("Counts.png")
+    size=(400,300)
+    out = im.resize(size)
+    out.save('Counts.png')
+    counts_btn.image = 'Counts.png'
+    
+# create noise plot
+
+    a_threshold = np.maximum(results["Noise"] - uut_noise_threshold, 0)
+    b_threshold = np.minimum(results["Noise"], uut_noise_threshold)
+    x = range(uut_total_halls)
+    fig, ax = plt.subplots()
+    ax.bar(x, b_threshold, 0.35, color="green")
+    ax.bar(x, a_threshold, 0.35, color="red", bottom=b_threshold)
+    plt.axhline(uut_noise_threshold, color='red', ls='dotted')
+    plt.savefig('Noise.png')
+    im = Image.open('Noise.png')
+    size=(400,300)
+    out = im.resize(size)
+    out.save('Noise.png')
+    noise_btn.image = 'Noise.png'
+
+   
     
 def plot_noise():
     print("Noise Plot")
