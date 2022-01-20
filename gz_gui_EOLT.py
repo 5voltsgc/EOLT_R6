@@ -9,7 +9,8 @@ import adafruit_ads1x15.ads1015 as ADS
 from adafruit_ads1x15.analog_in import AnalogIn
 from fpdf import FPDF
 import matplotlib.pyplot as plt
-# import pandas as pd
+import pandas as pd
+import random
 # Create the I2C bus
 i2c = busio.I2C(board.SCL, board.SDA)
 
@@ -56,7 +57,7 @@ plotlegend = []
 users=[] # list to hold users - purhapse will change to Dictionary to make easier to add 
 item_num_indx = 0 # used as a global index for which test
 noise_readings = 100 # how many readings for the noise check
-test_parmaters = ["0-item Number", "1-Serial number", "2-HALLS", "3-HEADS", "4-Adrs/selected", ] 
+count_readings = 600 # how many steps and readings for counts check
 
 # Item number column headers
 # 0-Part Numbers,
@@ -140,6 +141,15 @@ def home():
         GPIO.output(STEP, GPIO.LOW)
     #     sleep(delay/10)
 
+def selected_read_all_halls(heads, halls_per_head):
+    #TODO
+    print(" you selected a selected type sensor set but the function has not been created")
+    total_halls = heads * halls_per_head
+    selected = []
+    for _ in range(total_halls):
+        selected.append(random.randint(3000,26000))     
+    
+    return (selected) 
 
 def addressed_read_all_halls(heads, halls_per_head):
     """Function to read a addressed type sensor set, like SMFL
@@ -147,9 +157,6 @@ def addressed_read_all_halls(heads, halls_per_head):
         output is a list of values of heads * halls_per_head length"""
     
     hall_readings = []
-    
-#     print("heads: " + str(HEADS))
-#     print("heads: " + str(HALLS))
     for i in range(heads):
         for j in range(halls_per_head):
             addressed_hall_number = i * halls_per_head + j
@@ -275,21 +282,17 @@ def begin_test():
     
 #     Obtain the data needed for the test
     uut_index = items.index(int(selected_item.value))
-    uut_heads = item_numbers[uut_index][2]
-    uut_halls_per_head = item_numbers[uut_index][3]
+    uut_heads = item_numbers[uut_index][3]
+    uut_halls_per_head = item_numbers[uut_index][2]
     uut_total_halls = uut_halls_per_head * uut_heads
+    uut_selected = item_numbers[uut_index][4]
     uut_user = user_name_cmb.value #String
     uut_serial_num = serial_num_txtbox.value
     uut_plotlegend = []
+    uut_noise_threshold = item_numbers[uut_index][14]
     for h in range(uut_halls_per_head * uut_heads):
         uut_plotlegend.append("hall: "+ str(h))
 #     print(uut_plotlegend)
-#     Create results table which is a summary of the test:  max, min, & noise
-    
-#     readings_table = np.zeros(shape=(uut_total_halls))
-# #     print(readings_table)   
-#     results_table = np.zeros(shape=(8,uut_total_halls)) #Erase the values in the table
-# #     print(results_table)
     
     #prime ads sensor by calling it once without doing anything with the returned list
     addressed_read_all_halls(uut_heads, uut_halls_per_head)
@@ -297,11 +300,22 @@ def begin_test():
     uut_noise=[]
     # Noise Check
     for n in range(noise_readings):
-        uut_noise.append(addressed_read_all_halls(uut_heads, uut_halls_per_head))
-    print(f"the current reading list has rows: {len(current_reading)}")
-    print(f"the current reading list has columns: {len(current_reading[0])}")
+        if uut_selected:
+            uut_noise.append(selected_read_all_halls(uut_heads, uut_halls_per_head))
+        else:
+            uut_noise.append(addressed_read_all_halls(uut_heads, uut_halls_per_head))
+            
+    print(f"the current reading list has rows: {len(uut_noise)}")
+    print(f"the current reading list has columns: {len(uut_noise[0])}")
+    noise_df = pd.DataFrame(uut_noise, columns = uut_plotlegend)
+    noise_df.to_csv("noise.csv", index = True)
+    results = noise_df.iloc[:, 0:(uut_total_halls)].diff(axis=0, periods = 1).abs().max().to_frame()
+    results.columns = ['Noise']
+    results = results.assign(Result = results.loc[:,'Noise'] < uut_noise_threshold)
+    print(results)
     
-
+    # Counts Check
+    count_readings
     
 #     This is for testing only remove next line to disable stepper prototyping only
     GPIO.output(ENB, False)
