@@ -3,11 +3,11 @@ from guizero import App, Text, TextBox, Combo, PushButton, Box
 import numpy as np
 from time import sleep, strftime
 from datetime import datetime
-# import RPi.GPIO as GPIO
-# import board
-# import busio
-# import adafruit_ads1x15.ads1015 as ADS
-# from adafruit_ads1x15.analog_in import AnalogIn
+import RPi.GPIO as GPIO
+import board
+import busio
+import adafruit_ads1x15.ads1015 as ADS
+from adafruit_ads1x15.analog_in import AnalogIn
 from fpdf import FPDF
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -15,10 +15,10 @@ import random
 from PIL import Image
 import os
 # Create the I2C bus
-# i2c = busio.I2C(board.SCL, board.SDA)
+i2c = busio.I2C(board.SCL, board.SDA)
 
 # Create the ADC object using the I2C bus
-# ads = ADS.ADS1015(i2c)
+ads = ADS.ADS1015(i2c)
 # Stepper Motor and Sensor head GPIO addresses
 DIR = 27   # Direction GPIO Pin
 STEP = 17  # Step GPIO Pin
@@ -30,30 +30,28 @@ head_select_1 = 24
 head_select_2 = 25
 head_select_3 = 12
 #Set up the analog to digital pins
-# ads0 = AnalogIn(ads, ADS.P0)
-# ads1 = AnalogIn(ads, ADS.P1)
-# ads2 = AnalogIn(ads, ADS.P2)
-# ads3 = AnalogIn(ads, ADS.P3)
+ads0 = AnalogIn(ads, ADS.P0)
+ads1 = AnalogIn(ads, ADS.P1)
+ads2 = AnalogIn(ads, ADS.P2)
+ads3 = AnalogIn(ads, ADS.P3)
 
-# GPIO.setmode(GPIO.BCM)
-# GPIO.setup(head_select_0, GPIO.OUT)
-# GPIO.setup(head_select_1, GPIO.OUT)
-# GPIO.setup(head_select_2, GPIO.OUT)
-# GPIO.setup(head_select_3, GPIO.OUT)
-# GPIO.setup(STEP, GPIO.OUT)
-# GPIO.setup(DIR, GPIO.OUT)
-# GPIO.output(DIR, CW)
-# GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Set pin 5 to be an input pin and set initial value to be pulled low (off)
-# GPIO.setup(21, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Set pin 21 to be an input pin and set initial value to be pulled low (off)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(head_select_0, GPIO.OUT)
+GPIO.setup(head_select_1, GPIO.OUT)
+GPIO.setup(head_select_2, GPIO.OUT)
+GPIO.setup(head_select_3, GPIO.OUT)
+GPIO.setup(STEP, GPIO.OUT)
+GPIO.setup(DIR, GPIO.OUT)
+GPIO.output(DIR, CW)
+GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Set pin 5 to be an input pin and set initial value to be pulled low (off)
+GPIO.setup(21, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Set pin 21 to be an input pin and set initial value to be pulled low (off)
 
 # Initiallizing the Home Switch on pin 5
-# pin5 = GPIO.input(5)
+pin5 = GPIO.input(5)
 
-# pin21 = GPIO.input(21) # to be used for the power down Raspberry Pi
+pin21 = GPIO.input(21) # to be used for the power down Raspberry Pi
 
-# GPIO.setup(ENB, GPIO.OUT)
-# HALLS = 6
-# HEADS = 3
+GPIO.setup(ENB, GPIO.OUT)
 delay = .015
 readings_table = []
 plotlegend = [] 
@@ -128,25 +126,25 @@ def load_users():
 
 def home():
     # enable the stepper motor control - don't leave on since the motor heats up
-    # GPIO.output(ENB, True)
-    # GPIO.output(DIR, CW) #Set dir of travel towards home switch
+    GPIO.output(ENB, True)
+    GPIO.output(DIR, CW) #Set dir of travel towards home switch
     # Read current state of home sensor
-    # home_sensor = GPIO.input(5)
+    home_sensor = GPIO.input(5)
 #     print("Homing plate")
-    # while home_sensor == 0:
-    #     GPIO.output(STEP, GPIO.HIGH)
-    #     sleep(delay)
-    #     GPIO.output(STEP, GPIO.LOW)
-    #     home_sensor = GPIO.input(5)
+    while home_sensor == 0:
+        GPIO.output(STEP, GPIO.HIGH)
+        sleep(delay)
+        GPIO.output(STEP, GPIO.LOW)
+        home_sensor = GPIO.input(5)
     return
 
 def rapid_start_pos():    
 # rapid move to starting
-    # GPIO.output(DIR, CCW) # Set dir of travel away home switch
-    # for _ in range(500):
-    #     GPIO.output(STEP, GPIO.HIGH)
-    #     sleep(delay/10)
-    #     GPIO.output(STEP, GPIO.LOW)
+    GPIO.output(DIR, CCW) # Set dir of travel away home switch
+    for _ in range(500):
+        GPIO.output(STEP, GPIO.HIGH)
+        sleep(delay/10)
+        GPIO.output(STEP, GPIO.LOW)
     # print('Rapid move to start postion')
     return
 
@@ -268,30 +266,30 @@ def begin_test():
     
     # Counts Check create a list to put all readings until last step
     uut_counts = []
-    # GPIO.output(DIR, CCW) 
+    GPIO.output(DIR, CCW) 
     for n in range(count_readings):
         if uut_selected:
             uut_counts.append(selected_read_all_halls(uut_heads, uut_halls_per_head))
         else:
             uut_counts.append(addressed_read_all_halls(uut_heads, uut_halls_per_head))
-        # Move one step
-        # GPIO.output(STEP, GPIO.HIGH)
-        # sleep(delay/10)
-        # GPIO.output(STEP, GPIO.LOW)
+#         Move one step
+        GPIO.output(STEP, GPIO.HIGH)
+        sleep(delay/10)
+        GPIO.output(STEP, GPIO.LOW)
 
         
 # return home
-    # GPIO.output(DIR, CW)    
-    # for r in range(count_readings + start_position):
-    #     GPIO.output(STEP, GPIO.HIGH)
-    #     sleep(delay/10)
-    #     GPIO.output(STEP, GPIO.LOW)
-    # #     sleep(delay/5)
-    #     step = int(60-round(r/18,0))
-    #     print(step)
+    GPIO.output(DIR, CW)    
+    for r in range(count_readings + start_position):
+        GPIO.output(STEP, GPIO.HIGH)
+        sleep(delay/10)
+        GPIO.output(STEP, GPIO.LOW)
+        sleep(delay/5)
+        step = int(60-round(r/18,0))
+#         print(step)
 
-    # GPIO.output(ENB, False)
-    # GPIO.cleanup()
+    GPIO.output(ENB, False)
+    GPIO.cleanup()
  
     counts_df = pd.DataFrame(uut_counts, columns = uut_plotlegend)
     # print(counts_df.max())
