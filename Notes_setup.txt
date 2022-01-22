@@ -1,0 +1,3 @@
+sudo chown -R <yourlogin> /var/www/html
+After creating the webserver change user rights to the html folder so you can write to it
+
