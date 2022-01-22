@@ -123,7 +123,7 @@ def load_users():
         # print(users)
         users = flatten_list(users)
         users=sorted(users)
-        print(users)
+#         print(users)
     return
 
 def home():
@@ -132,7 +132,7 @@ def home():
     # GPIO.output(DIR, CW) #Set dir of travel towards home switch
     # Read current state of home sensor
     # home_sensor = GPIO.input(5)
-    print("Homing plate")
+#     print("Homing plate")
     # while home_sensor == 0:
     #     GPIO.output(STEP, GPIO.HIGH)
     #     sleep(delay)
@@ -203,6 +203,12 @@ def update_harnes_fixture_lbl():
     use_harness.value = harness
     use_fixture.value = fixture
     tst_btn.enabled = True
+    #remove any illigel characters for file names and make upper case
+    # initializing bad_chars_list
+    bad_chars = [';', ':', '!', "*", "[", "]", "=", "$", "!", "@", "#", "&", "^", "%"]
+    original_text = serial_num_txtbox.value
+    corrected_text = ''.join(i for i in original_text if not i in bad_chars).upper()
+    serial_num_txtbox.value = corrected_text
  
 def save_test():
     print("Save Test")
@@ -296,7 +302,7 @@ def begin_test():
     results['Target_Max'] = uut_max_diff
     results['Target_Min'] = uut_min_diff
     # print(results)
-    result_txtbox.value = results
+
     save_btn.enabled = True
 # create counts plot
     plt.plot(uut_counts)
@@ -330,8 +336,11 @@ def begin_test():
     counts_btn.image = counts_plt_fn
     pf_noise = results["noise_result"].all()
     pf_counts = results["count_results"].all()
-    print(f"the pass fail results for noise is: {pf_noise}")
-    print(f"the pass fail results for counts is: {pf_counts}")
+#     print(f"the pass fail results for noise is: {pf_noise}")
+#     print(f"the pass fail results for counts is: {pf_counts}")
+    
+    result_txtbox.value = str(results)
+    
     uut_results = "N/a"
     if pf_counts and pf_noise:
         results_lbl.bg='green'
@@ -362,21 +371,25 @@ def begin_test():
     pdf.text(8, 40, line1)
     line2 = "Date/ID: " + current_datetime +"_" + test_fixture + "     Result: " + uut_results
     pdf.text(8,54, line2)
-    pdf.set_font('helvetica','', 8)
-    # print(results.loc[[1]])
 
     lst_results = results.values.tolist()
     
-    y = 140
+
+    pdf.line(x1=8, y1=140, x2=200, y2=140)
+    pdf.text(8,146, "Results Table:")
+    pdf.set_font('helvetica','B', 12)    
+    pdf.text(8, 152, " 1. Noise, 2. Noise Result 3. Max 4. Min 5. Diff 6. Diff Result 7. Diff Max 8. Diff Min")
+    pdf.set_font('helvetica','', 12)  
+    y = 158
     for i in range(uut_total_halls):
         t = "Hall: " + str(i) + " - " + str(lst_results[i])
         pdf.text(8, y, t)
-        y = y + 4
+        y = y + 6
 
     # pdf.text(8, 152, str(item_numbers[0]))
     # pdf.text(8, 156, str(item_numbers[1]))
     pdf_filename = uut_filename + ".pdf" # for some reason it doesn't add the extension
-    print(f"Printed PDF with filename: {pdf_filename}")
+#     print(f"Printed PDF with filename: {pdf_filename}")
     pdf.output(uut_filename)
     os.rename(uut_filename, pdf_filename)
 
@@ -399,20 +412,21 @@ selected_item.text_size=20
 # Serial Numbers
 serial_label = Text(button_box, text="2. Enter - Serial Number:", size=20, grid=[0,2], align="left")
 serial_num_txtbox = TextBox(button_box, grid=[1, 2, 2, 1], width=17, command=update_harnes_fixture_lbl)
+serial_num_txtbox.value = "B00000"
 serial_num_txtbox.text_size = 20
 # User 
 user_lbl = Text(button_box,text="3. Select - User:", size=20, grid=[0, 3], align="left" )
 user_lbl.when_double_clicked = double_click
-user_name_cmb = Combo(button_box,options=users, grid=[1,3, 2, 1], align="left", width=15)
-user_name_cmb.text_size=20
+user_name_cmb = Combo(button_box,options=users, grid=[1,3, 2, 1], align="left", width=25)
+user_name_cmb.text_size=12
 # Use fixture and harness
 harness_lbl = Text(button_box, text="4. Use Harness:", size=20, grid=[0, 4], align="left")
 use_harness = TextBox(button_box, enabled=True, width=17, grid=[1, 4, 2, 1])
 use_harness.text_size=20
-use_harness.bg = "#999999"
+use_harness.bg = (192,192,192)
 fixture_lbl = Text(button_box, text="5. Use Fixture:", size=20, grid=[0,5], align="left")
 use_fixture = TextBox(button_box, enabled=True, width=17, grid=[1, 5, 2, 1])
-use_fixture.bg = "#999999"
+use_fixture.bg = (192,192,192) #"FFFDF5"
 use_fixture.text_size=20
 # Buttons
 tst_btn = PushButton(button_box, command=begin_test, text = "6. Begin Test", grid=[0,6])
