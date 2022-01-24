@@ -209,7 +209,8 @@ def update_harnes_fixture_lbl():
     serial_num_txtbox.value = corrected_text
  
 def save_test():
-    print("Save Test")
+#     print("Save Test")
+    os.system("xdg-open 121250_G4235_2022_01_22-10_40_42_AMA.pdf")
 
 def begin_test():
     # print("begin test")
@@ -337,8 +338,9 @@ def begin_test():
 #     print(f"the pass fail results for noise is: {pf_noise}")
 #     print(f"the pass fail results for counts is: {pf_counts}")
     
-    result_txtbox.value = str(results)
-    
+#     result_txtbox.value = str(results).encode().decode('latin-1', 'strict')
+
+   
     uut_results = "N/a"
     if pf_counts and pf_noise:
         results_lbl.bg='green'
@@ -375,12 +377,16 @@ def begin_test():
 
     pdf.line(x1=8, y1=140, x2=200, y2=140)
     pdf.text(8,146, "Results Table:")
-    pdf.set_font('helvetica','B', 12)    
-    pdf.text(8, 152, " 1. Noise, 2. Noise Result 3. Max 4. Min 5. Diff 6. Diff Result 7. Diff Max 8. Diff Min")
+    pdf.set_font('helvetica','B', 12)
+    report_header = " 1. Noise, 2. Noise Result 3. Noise Treshold 4. Meas. Max 5.Meas. Min 6. Diff Result 7. Diff Max 8. Diff Min"
+    pdf.text(8, 152, report_header)
     pdf.set_font('helvetica','', 12)  
     y = 158
+    result_txtbox.append(report_header) 
     for i in range(uut_total_halls):
         t = "Hall: " + str(i) + " - " + str(lst_results[i])
+        # update the results text box on the GUI
+        result_txtbox.append(t)  
         pdf.text(8, y, t)
         y = y + 6
 
@@ -430,7 +436,7 @@ use_fixture.text_size=20
 tst_btn = PushButton(button_box, command=begin_test, text = "6. Begin Test", grid=[0,6])
 tst_btn.text_size = 30
 tst_btn.enabled = False
-save_btn = PushButton(button_box, command=save_test, text = "7. Save Test", grid=[1,6])
+save_btn = PushButton(button_box, command=save_test, text = "7. Open Report", grid=[1,6])
 save_btn.text_size = 30
 save_btn.enabled = False
 graph_box = Box(app, layout="grid", grid=[6,0,6,6], border=3)
