@@ -1,12 +1,10 @@
 from random import random
-from timeit import repeat
 from tkinter import font
-
-from cv2 import CAP_MSMF
+import collections
 from guizero import App, Text, PushButton, TextBox, info
 from matplotlib.pyplot import text, title
 import numpy as np
-from time import sleep, strftime
+from time import sleep, strftime, time
 from datetime import datetime
 from random import randint
 current_limit = 0.13
@@ -15,13 +13,25 @@ prox_retract = True
 prox_extend = False
 valve_extend = False
 cycles = 0
+uut_filename = ""
+
+def toggle_cylinder():
+    if toggle_cylinder_pb.text == "Extend Cylinder":
+        toggle_cylinder_pb.text = "Retract Cylinder"
+        print("Extend cylinder")
+    else:
+        toggle_cylinder_pb.text = "Extend Cylinder"
+        print("retract Cylinder")
+
 def monitor_dmm():
     set_current_txt.value = str(randint(45, 55))
 
 def get_file_name():
+    global uut_filename
     current_datetime = datetime.now().strftime("%Y_%m_%d-%I_%M_%S_%p")
-    filename = "Squeeze_" + str(current_datetime) + ".csv"
-    return filename
+    name = sample_name_txt.value
+    uut_filename = "Squeeze_" + name + str(current_datetime) + ".csv"
+    file_name_txt.value = uut_filename
 
 def start_test():
 
@@ -33,6 +43,7 @@ def start_test():
     else:
         start_button.text = "Pause"
     set_baseline.disable()
+    toggle_cylinder_pb.disable()
 
 def stop():
     # Not sure I need this button
@@ -40,12 +51,16 @@ def stop():
     if stop_test is True:
         print("Test has stopped")
         start_button.text = "Start"
+        set_baseline.enable()
+        toggle_cylinder_pb.enable()
 
     else:
         print("The test is continuing")
 
 
 def test_loop():
+    cycle_times = collections.deque([])
+    start_time = time()
     testing = start_button.text
     global failed
     global prox_extend
@@ -55,9 +70,11 @@ def test_loop():
     global current_limit
 
     if testing == "Pause" and failed is False:
+
         print("testing loop")
         # check the state of the cylinder, and switch
         if valve_extend is True & prox_extend is True:
+
             # the cylinder and the air valve are correct
             prox_extend = False
             prox_retract = True
@@ -86,14 +103,25 @@ def test_loop():
 
         if current_limit < (dmm_read - dmm_set_current):
             print(f"test sample has failed at {cycles} squeezes")
-            failed = True 
+            failed = True
 
-uut_filename = get_file_name()
+        end_time = time()
+        time_elapsed_ms = (end_time - start_time) * 1000
+        # running average of the cycle time
+        cycle_times.append(time_elapsed_ms)
+        if 99 < len(cycle_times):
+            cycle_times.popleft()
+        ave_cycle_time = sum(cycle_times) / len(cycle_times)
+        cycle_time_txt.value = "{:.2f}".format(ave_cycle_time)
+        cph = 3.6e+6 / ave_cycle_time
+        cph_txt.value = int(cph)
+
+# uut_filename = get_file_name()
 app = App(layout="grid", width=900, height=650, title="Technology Realization: Squeeze-O-Matic")
 app.repeat(500, test_loop)
 sample_name_lbl = Text(app, grid=[0, 0], text="Sample Name:")
 sample_name_lbl.text_size = 20
-sample_name_txt = TextBox(app, grid=[1, 0])
+sample_name_txt = TextBox(app, grid=[1, 0], command=get_file_name)
 sample_name_txt.text_size = 20
 file_name_lbl = Text(app, grid=[2, 0], text="   File Name:")
 file_name_lbl.text_size = 12
@@ -105,7 +133,6 @@ set_current_lbl.text_size = 20
 set_current_txt = TextBox(app, grid=[1, 2], text="50mA")
 set_current_txt.text_size = 20
 set_baseline = PushButton(app, grid=[2, 2], text="Set Baseline", command=monitor_dmm)
-
 
 start_button = PushButton(app, grid=[0, 5], text="Start", command=start_test)
 start_button.text_size = 20
@@ -128,5 +155,14 @@ current_diff_txt.text_size = 20
 lmt = f" < {current_limit}"
 current_limit_lbl = Text(app, grid=[2, 9], text=lmt)
 current_limit_lbl.text_size = 20
+cycle_time_lbl = Text(app, grid=[0, 10], text="CycleTime (ms):")
+cycle_time_lbl.text_size = 20
+cycle_time_txt = Text(app, grid=[1, 10], text="N/a")
+cycle_time_txt.text_size = 20
+cph_lbl = Text(app, grid=[0, 11], text="Cycles per hour:")
+cph_lbl.text_size = 20
+cph_txt = Text(app, grid=[1, 11], text="N/a")
+cph_txt.text_size = 20
+toggle_cylinder_pb = PushButton(app, grid=[0, 12], text="Extend Cylinder", command=toggle_cylinder)
 
 app.display()
